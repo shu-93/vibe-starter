@@ -1,20 +1,13 @@
-import React, { useState } from 'react';
-import { CheckCircle2, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CheckCircle2, RotateCcw, Clock, Pause, Play, Sparkles } from 'lucide-react';
 
 interface Cell {
   row: number;
   col: number;
   number?: number;
   solution: string;
-  isBlack?: boolean;
 }
 
-// 5x5 Mini Crossword Grid
-// Row 0: P O S T S
-// Row 1: R A D A R
-// Row 2: E X P E L
-// Row 3: S C E N E
-// Row 4: S E E D S
 const GRID_DATA: Cell[][] = [
   [
     { row: 0, col: 0, number: 1, solution: 'P' },
@@ -77,6 +70,25 @@ export const MiniCrosswordGame: React.FC = () => {
   const [selectedCell, setSelectedCell] = useState<{ r: number; c: number }>({ r: 0, c: 0 });
   const [direction, setDirection] = useState<'across' | 'down'>('across');
   const [isCompleted, setIsCompleted] = useState<boolean>(false);
+  const [seconds, setSeconds] = useState<number>(0);
+  const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
+
+  // Timer
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isTimerRunning && !isCompleted) {
+      interval = setInterval(() => {
+        setSeconds((s) => s + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isTimerRunning, isCompleted]);
+
+  const formatTime = (totalSec: number) => {
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
 
   const handleCellClick = (r: number, c: number) => {
     if (selectedCell.r === r && selectedCell.c === c) {
@@ -93,7 +105,6 @@ export const MiniCrosswordGame: React.FC = () => {
       const newGrid = userGrid.map((row) => [...row]);
       newGrid[r][c] = '';
       setUserGrid(newGrid);
-      // Move backwards
       if (direction === 'across' && c > 0) setSelectedCell({ r, c: c - 1 });
       if (direction === 'down' && r > 0) setSelectedCell({ r: r - 1, c });
       return;
@@ -121,6 +132,7 @@ export const MiniCrosswordGame: React.FC = () => {
       }
       if (allCorrect) {
         setIsCompleted(true);
+        setIsTimerRunning(false);
       }
 
       // Auto advance
@@ -136,36 +148,79 @@ export const MiniCrosswordGame: React.FC = () => {
     setUserGrid(Array(5).fill('').map(() => Array(5).fill('')));
     setSelectedCell({ r: 0, c: 0 });
     setIsCompleted(false);
+    setSeconds(0);
+    setIsTimerRunning(true);
+  };
+
+  const revealLetter = () => {
+    const { r, c } = selectedCell;
+    const newGrid = userGrid.map((row) => [...row]);
+    newGrid[r][c] = GRID_DATA[r][c].solution;
+    setUserGrid(newGrid);
   };
 
   const solveGame = () => {
     const solved = GRID_DATA.map((row) => row.map((cell) => cell.solution));
     setUserGrid(solved);
     setIsCompleted(true);
+    setIsTimerRunning(false);
   };
 
+  // Active clue
+  const activeClue =
+    direction === 'across'
+      ? CLUES.across[selectedCell.r]
+      : CLUES.down[selectedCell.c];
+
   return (
-    <div className="flex flex-col md:flex-row gap-6 p-4 max-w-xl mx-auto focus:outline-none" onKeyDown={handleKeyDown} tabIndex={0}>
+    <div
+      className="flex flex-col md:flex-row gap-6 p-4 max-w-xl mx-auto focus:outline-none font-sans"
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       <div className="flex flex-col items-center">
         <div className="flex items-center justify-between w-full pb-2 mb-3 border-b border-border-hairline">
           <div>
-            <h3 className="font-serif text-xl font-bold tracking-tight">The Mini</h3>
-            <p className="text-xs text-ink-subtle">Solve in 2 minutes.</p>
+            <h3 className="font-serif text-2xl font-bold tracking-tight">The Mini</h3>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className="font-mono text-xs font-bold text-ink-black flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5 text-nyt-blue" />
+                {formatTime(seconds)}
+              </span>
+              <button
+                onClick={() => setIsTimerRunning(!isTimerRunning)}
+                className="text-[10px] text-ink-subtle hover:text-ink-black uppercase font-bold"
+              >
+                {isTimerRunning ? 'Pause' : 'Resume'}
+              </button>
+            </div>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={revealLetter}
+              className="px-2 py-1 text-xs border border-border-hairline hover:border-ink-black"
+            >
+              Hint
+            </button>
+            <button
+              onClick={solveGame}
+              className="px-2 py-1 text-xs bg-paper-tint hover:bg-slate-200 border border-border-hairline"
+            >
+              Reveal
+            </button>
             <button
               onClick={resetGame}
               className="p-1 text-xs border border-border-hairline hover:border-ink-black flex items-center gap-1"
             >
-              <RotateCcw className="w-3 h-3" /> Reset
-            </button>
-            <button
-              onClick={solveGame}
-              className="p-1 text-xs bg-paper-tint hover:bg-slate-200 border border-border-hairline"
-            >
-              Reveal
+              <RotateCcw className="w-3 h-3" />
             </button>
           </div>
+        </div>
+
+        {/* Clue Banner above grid */}
+        <div className="w-full bg-[#e5f3ff] border border-[#bce0fd] p-2 text-xs font-medium text-ink-black mb-3">
+          <span className="font-bold mr-1">{activeClue.num} {direction.toUpperCase()}:</span>
+          {activeClue.text}
         </div>
 
         {/* 5x5 Grid */}
@@ -202,9 +257,9 @@ export const MiniCrosswordGame: React.FC = () => {
         </div>
 
         {isCompleted && (
-          <div className="mt-3 p-2 bg-[#e8f5e9] border border-[#2e7d32] text-xs font-semibold text-[#1b5e20] flex items-center gap-1.5 w-full justify-center">
-            <CheckCircle2 className="w-4 h-4" />
-            Congratulations! Mini completed!
+          <div className="mt-3 p-3 bg-[#e8f5e9] border border-[#2e7d32] text-xs font-semibold text-[#1b5e20] flex items-center gap-2 w-full justify-center shadow-xs animate-in zoom-in-95">
+            <Sparkles className="w-4 h-4 text-[#2e7d32]" />
+            <span>Solved in {formatTime(seconds)}! Excellent job.</span>
           </div>
         )}
       </div>
@@ -219,9 +274,9 @@ export const MiniCrosswordGame: React.FC = () => {
             {CLUES.across.map((clue) => (
               <li
                 key={clue.num}
-                className={`py-0.5 px-1 cursor-pointer transition-colors ${
+                className={`py-1 px-1.5 cursor-pointer transition-colors ${
                   direction === 'across' && selectedCell.r === clue.num - 1
-                    ? 'bg-[#e5f3ff] font-semibold text-nyt-blue'
+                    ? 'bg-[#e5f3ff] font-bold text-nyt-blue'
                     : 'text-ink-charcoal hover:bg-paper-tint'
                 }`}
                 onClick={() => {
@@ -244,9 +299,9 @@ export const MiniCrosswordGame: React.FC = () => {
             {CLUES.down.map((clue) => (
               <li
                 key={clue.num}
-                className={`py-0.5 px-1 cursor-pointer transition-colors ${
+                className={`py-1 px-1.5 cursor-pointer transition-colors ${
                   direction === 'down' && selectedCell.c === clue.num - 1
-                    ? 'bg-[#e5f3ff] font-semibold text-nyt-blue'
+                    ? 'bg-[#e5f3ff] font-bold text-nyt-blue'
                     : 'text-ink-charcoal hover:bg-paper-tint'
                 }`}
                 onClick={() => {

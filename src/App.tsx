@@ -15,7 +15,10 @@ import {
   ArrowRight, 
   ExternalLink,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon,
+  BookOpen
 } from 'lucide-react';
 import { 
   ARTICLES, 
@@ -31,12 +34,18 @@ import { SubscribeModal } from './components/SubscribeModal';
 import { AccountModal } from './components/AccountModal';
 import { SavedArticlesDrawer } from './components/SavedArticlesDrawer';
 import { SearchModal } from './components/SearchModal';
+import { StickyHeader } from './components/StickyHeader';
+import { BreakingNewsBar } from './components/BreakingNewsBar';
+import { MarketsWeatherPopover } from './components/MarketsWeatherPopover';
+
+type PaperTheme = 'pure' | 'antique' | 'night';
 
 export default function App() {
   // Navigation & Article state
   const [activeSection, setActiveSection] = useState<string>('U.S.');
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null);
   const [currentEdition, setCurrentEdition] = useState(EDITIONS[0]);
+  const [paperTheme, setPaperTheme] = useState<PaperTheme>('pure');
 
   // Saved / Bookmarks state
   const [savedArticleIds, setSavedArticleIds] = useState<string[]>([
@@ -54,12 +63,13 @@ export default function App() {
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMarketsPopoverOpen, setIsMarketsPopoverOpen] = useState(false);
 
   // User state
   const [userEmail, setUserEmail] = useState('shuqin_93@msn.com');
   const [isLoggedIn, setIsLoggedIn] = useState(true);
 
-  // Wirecutter modal
+  // Wirecutter pick modal
   const [wirecutterToast, setWirecutterToast] = useState(false);
 
   const toggleSave = (articleId: string) => {
@@ -88,27 +98,57 @@ export default function App() {
   // If viewing an article in detail, show ArticleReader
   if (selectedArticle) {
     return (
-      <ArticleReader
-        article={selectedArticle}
-        onBack={() => setSelectedArticle(null)}
-        onSelectArticle={(art) => setSelectedArticle(art)}
-        isSaved={savedArticleIds.includes(selectedArticle.id)}
-        onToggleSave={toggleSave}
-      />
+      <div className={paperTheme === 'night' ? 'bg-[#141516] text-[#e6e4df]' : paperTheme === 'antique' ? 'bg-[#fbf8f2] text-[#1c1917]' : 'bg-white text-ink-black'}>
+        <ArticleReader
+          article={selectedArticle}
+          onBack={() => setSelectedArticle(null)}
+          onSelectArticle={(art) => setSelectedArticle(art)}
+          isSaved={savedArticleIds.includes(selectedArticle.id)}
+          onToggleSave={toggleSave}
+        />
+      </div>
     );
   }
 
   // Filter articles based on activeSection if not 'U.S.' or front page
-  const filteredArticles = activeSection === 'U.S.' 
-    ? ARTICLES 
-    : ARTICLES.filter(a => a.section.toLowerCase() === activeSection.toLowerCase() || a.subSection?.toLowerCase() === activeSection.toLowerCase());
+  const isSectionFiltered = activeSection !== 'U.S.';
+  const filteredArticles = isSectionFiltered
+    ? ARTICLES.filter(a => a.section.toLowerCase() === activeSection.toLowerCase() || a.subSection?.toLowerCase() === activeSection.toLowerCase())
+    : ARTICLES;
+
+  // Theme styling classes
+  const themeContainerClass = paperTheme === 'night'
+    ? 'bg-[#121314] text-[#e5e3de]'
+    : paperTheme === 'antique'
+    ? 'bg-[#fcf9f2] text-[#1a1816]'
+    : 'bg-paper-pure text-ink-black';
 
   return (
-    <div className="bg-paper-pure font-body-standard text-ink-black antialiased min-h-screen flex flex-col selection:bg-[#326891] selection:text-white">
+    <div className={`min-h-screen flex flex-col font-body-standard antialiased transition-colors duration-200 ${themeContainerClass}`}>
+      {/* ───────────────── STICKY HEADER ───────────────── */}
+      <StickyHeader
+        activeSection={activeSection}
+        onSelectSection={(sec) => {
+          if (sec === 'Games') setIsGamesModalOpen(true);
+          else setActiveSection(sec);
+        }}
+        onOpenSearch={() => setIsSearchModalOpen(true)}
+        onOpenSaved={() => setIsSavedDrawerOpen(true)}
+        onOpenSubscribe={() => setIsSubscribeModalOpen(true)}
+        savedCount={savedArticleIds.length}
+        onLogoClick={() => {
+          setActiveSection('U.S.');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+      />
+
+      {/* ───────────────── BREAKING NEWS DEVELOPING BAR ───────────────── */}
+      <BreakingNewsBar onSelectStory={(id) => openArticleById(id)} />
+
       {/* ───────────────── HEADER ───────────────── */}
-      <header className="w-full bg-paper-pure border-b border-border-hairline">
+      <header className="w-full border-b border-border-hairline">
         <div className="max-w-7xl mx-auto px-margin">
-          {/* Top Bar: Editions, Weather, Subscriptions & Login */}
+          {/* Top Bar: Editions, Weather, Subscriptions & Theme Selector */}
           <div className="flex items-center justify-between py-space-xs border-b border-border-hairline text-ink-subtle">
             <div className="flex items-center gap-space-md">
               <div className="flex items-center gap-space-xs">
@@ -116,7 +156,7 @@ export default function App() {
                   <React.Fragment key={ed.id}>
                     <button
                       onClick={() => setCurrentEdition(ed)}
-                      className={`font-label-meta text-label-meta uppercase tracking-wider transition-colors ${
+                      className={`font-label-meta text-label-meta uppercase tracking-wider transition-colors cursor-pointer ${
                         currentEdition.id === ed.id
                           ? 'text-ink-black font-bold'
                           : 'text-ink-subtle hover:text-ink-black'
@@ -129,26 +169,59 @@ export default function App() {
                 ))}
               </div>
 
-              {/* Weather & Markets Widget */}
-              <div className="hidden lg:flex items-center gap-space-sm pl-space-md border-l border-border-hairline font-label-meta text-label-meta">
+              {/* Weather & Markets Interactive Trigger */}
+              <button
+                onClick={() => setIsMarketsPopoverOpen(true)}
+                className="hidden lg:flex items-center gap-space-sm pl-space-md border-l border-border-hairline font-label-meta text-label-meta hover:opacity-80 transition-opacity cursor-pointer"
+                title="View full financial markets and weather forecast"
+              >
                 <span className="flex items-center gap-1">
                   <CloudSun className="w-3.5 h-3.5 text-ink-subtle" />
-                  <span className="text-ink-charcoal font-semibold">{currentEdition.weather}</span>
+                  <span className="font-semibold text-ink-charcoal">{currentEdition.weather}</span>
                 </span>
                 <span className="text-border-hairline">•</span>
                 <span className="flex items-center gap-1">
                   <TrendingUp className="w-3.5 h-3.5 text-nyt-blue" />
-                  <span className="text-ink-charcoal font-semibold">{currentEdition.market}</span>
+                  <span className="font-semibold text-ink-charcoal">{currentEdition.market}</span>
                 </span>
-              </div>
+              </button>
             </div>
 
             <div className="flex items-center gap-space-sm">
+              {/* Paper Theme Mode Selector */}
+              <div className="hidden sm:flex items-center border border-border-hairline mr-1 text-[10px] font-sans">
+                <button
+                  onClick={() => setPaperTheme('pure')}
+                  className={`px-2 py-0.5 uppercase tracking-wider ${
+                    paperTheme === 'pure' ? 'bg-ink-black text-white font-bold' : 'hover:bg-slate-100 text-ink-subtle'
+                  }`}
+                  title="Pure White Newsprint"
+                >
+                  Paper
+                </button>
+                <button
+                  onClick={() => setPaperTheme('antique')}
+                  className={`px-2 py-0.5 uppercase tracking-wider ${
+                    paperTheme === 'antique' ? 'bg-[#4a3b32] text-white font-bold' : 'hover:bg-slate-100 text-ink-subtle'
+                  }`}
+                  title="Warm Antique Broadsheet"
+                >
+                  Broadsheet
+                </button>
+                <button
+                  onClick={() => setPaperTheme('night')}
+                  className={`px-2 py-0.5 uppercase tracking-wider ${
+                    paperTheme === 'night' ? 'bg-slate-800 text-white font-bold' : 'hover:bg-slate-100 text-ink-subtle'
+                  }`}
+                  title="Night Reading Ink"
+                >
+                  Night
+                </button>
+              </div>
+
               <button
-                onClick={() => {
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="font-label-meta text-label-meta uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue mr-space-xs hidden sm:inline-block"
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="font-label-meta text-label-meta uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue mr-space-xs hidden md:inline-block cursor-pointer"
               >
                 Today's Paper
               </button>
@@ -156,7 +229,7 @@ export default function App() {
               {/* Reading List saved button */}
               <button
                 onClick={() => setIsSavedDrawerOpen(true)}
-                className="font-label-meta text-label-meta uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue hidden sm:flex items-center gap-1"
+                className="font-label-meta text-label-meta uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue hidden sm:flex items-center gap-1 cursor-pointer"
                 title="Reading List"
               >
                 <Bookmark className="w-3.5 h-3.5" />
@@ -207,7 +280,7 @@ export default function App() {
                 }}
                 className="inline-block group cursor-pointer"
               >
-                <h1 className="font-masthead-gothic text-4xl sm:text-5xl md:text-6xl text-ink-black tracking-normal select-none leading-none group-hover:opacity-95">
+                <h1 className="font-masthead-gothic text-4xl sm:text-5xl md:text-6xl text-ink-black tracking-normal select-none leading-none group-hover:opacity-90 transition-opacity">
                   The New York Times
                 </h1>
               </button>
@@ -221,10 +294,10 @@ export default function App() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onFocus={() => setIsSearchModalOpen(true)}
-                  placeholder="Search..."
+                  placeholder="Search articles..."
                   className="font-caption text-caption border-b border-ink-black bg-transparent py-1 pl-2 pr-6 focus:outline-none focus:border-nyt-blue placeholder:italic placeholder:text-ink-subtle w-36 lg:w-44"
                 />
-                <button type="submit" className="absolute right-1 text-ink-subtle hover:text-ink-black">
+                <button type="submit" className="absolute right-1 text-ink-subtle hover:text-ink-black cursor-pointer">
                   <Search className="w-3.5 h-3.5" />
                 </button>
               </form>
@@ -261,8 +334,30 @@ export default function App() {
         </div>
       </header>
 
+      {/* ───────────────── ACTIVE SECTION BANNER (If filtered) ───────────────── */}
+      {isSectionFiltered && (
+        <div className="bg-paper-tint border-b border-border-hairline py-3">
+          <div className="max-w-7xl mx-auto px-margin flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="font-serif text-2xl font-bold tracking-tight text-ink-black">
+                {activeSection} Section
+              </h2>
+              <span className="text-xs text-ink-subtle">
+                Showing {filteredArticles.length} featured stories
+              </span>
+            </div>
+            <button
+              onClick={() => setActiveSection('U.S.')}
+              className="text-xs uppercase font-bold text-nyt-blue hover:underline cursor-pointer"
+            >
+              ← Back to Front Page
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ───────────────── MAIN BROADSHEET ───────────────── */}
-      <main className="w-full bg-paper-pure min-h-screen flex-1">
+      <main className="w-full min-h-screen flex-1">
         <div className="max-w-7xl mx-auto px-margin pt-space-md pb-space-xxl">
           <div className="flex flex-col w-full">
             {/* Free to read announcement bar */}
@@ -358,7 +453,7 @@ export default function App() {
                 >
                   <img
                     className="w-full h-auto aspect-[4/3] object-cover group-hover:opacity-95 transition-opacity"
-                    alt="Editorial press conference portrait of a high-profile political female advisor wearing distinctive bold dark eyeglasses, looking directly at reporters with a solemn, intense expression in a crowded Capitol briefing room."
+                    alt="Kimberly Guilfoyle"
                     src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHMWRPAF08cAHDa7a6KCp-rPEvTSzARgiaLRXlf20-cdJGha76QvmMUwPXqFW4dI_5Io55RLFaO6dlfJ4lu6mNo5eRL9M6UqNwc_RMHBrfZpyaRflwIH8qA00q6HVzLJo_R-CkJEKMC0L8xf0eCBpvJDptX1d3HeJ_9hQmv7ECZcT6C7AIIKV1Ok1s8NXWc4UGilzScjUVVaMhbvF_BDLq7iFx5jO26AwfFGjI_gC5JC1HNp3ez-Ai"
                   />
                   <div className="flex items-start justify-between text-ink-subtle font-caption text-caption pt-2 leading-tight">
@@ -570,7 +665,7 @@ export default function App() {
                   >
                     <img
                       className="w-full h-full object-cover group-hover:opacity-95 transition-opacity"
-                      alt="Kyiv city skyline at dusk illuminated only by emergency flares and distant vehicle lights following a massive electrical grid failure."
+                      alt="Kyiv city skyline"
                       src="https://lh3.googleusercontent.com/aida-public/AB6AXuD_zRzXZJMXqp039AWmVnBUkIEg12IRS3gvFMlVPdUBT-8UF0OvB_gTbi_pxZtDb8ln4QtKh4fSRCd3V_2QurQaGisD4ynD-pFcr-s3PVpyOe8cBLCB16id1GIiAbUslrhc_VT5v01EpDoESmOcnhPh1bhvQy9QOCB3aMbpGe_o8Y8ZxHWqwLm-2A0PD2yXma87norbL9qqVIK3WkAi_qiKnjhGcBkuaIjMeA9znAaE9AWOOMH3VQRn"
                     />
                   </div>
@@ -735,7 +830,7 @@ export default function App() {
                   >
                     <img
                       className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                      alt="Conceptual editorial art photograph showing miniature glowing server boxes on an elegant banquet dining table beside wine glasses and candlelight."
+                      alt="AI Dinner Party"
                       src="https://lh3.googleusercontent.com/aida-public/AB6AXuBmAHZ7mD_be3ZnIm1XIFZ_rZIJCyIpu3zBJNeoMS5CMK0DKuPfpzPU34KnsQ1cwPikcELC-WjUpuTM0K-yt3-D-bMBFIiZHH6P-kdiMK9uV_a9vXZWtEv7Ep26vQAMFZ3ayJRM0iIwClSd11Mj6R-1almu6tZcqvRFIwOPrp_0jkkqm31aYKFABwbCNwWurbgH1ABpLdti-d3dkMHhd18XYDWbXefuKCUksNrof4RfuRuaJYgXng2N"
                     />
                   </div>
@@ -818,7 +913,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-full bg-paper-tint border border-border-hairline overflow-hidden shrink-0">
                       <img
                         className="w-full h-full object-cover"
-                        alt="David Wallace-Wells portrait"
+                        alt="David Wallace-Wells"
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKuH0RHcqj-19dvgF1KXDZzDOmxsoLwoe_lVJnrg4F_Emb0FBpKp9pFHWFDKZXjLKaJdnA9fERR-tq3IvSea-7NqPcUOFLUAVNUL1CeB9qlYhZknRr9VJqIhMttBViCxk96IVxEBevofC9mMiTTVVsPIFzy5HdWlDBBEqmYB_bjFtUWs8_4md-EX0qWVJlpeWCwRMSpcXKUoxPvTXc_v-91CG9v9PdnQE0utMbW2Hh_98pevjKedX1"
                       />
                     </div>
@@ -853,7 +948,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-full bg-paper-tint border border-border-hairline overflow-hidden shrink-0">
                       <img
                         className="w-full h-full object-cover"
-                        alt="Heather Kerr portrait"
+                        alt="Heather Kerr"
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuBrvHSxgFTBJ_asax_Y7PxnStAuS3hTcQDxf-_oDTzgpzDXuPNjQQb6WVYHVF_2N4eMel9LXbFVDbVsQ8JK1cCX8ZcALkH0QqlTPGcRVIaUIe_orUH1To_na31_-J5erlco6BeGc7FYATqiwFHnhRqqdjtaF-r6l9ZR4GUZ3XrVDks2wI8s9Yp0yW9G_4ctKTrAHvEY2tXbrdU5nycPU2jcQlAO4jen1lQwEhKiqDO9LkjvfU4g1twu"
                       />
                     </div>
@@ -888,7 +983,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-full bg-paper-tint border border-border-hairline overflow-hidden shrink-0">
                       <img
                         className="w-full h-full object-cover"
-                        alt="Carlos Lozada portrait"
+                        alt="Carlos Lozada"
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuAg0q453un49t9IwXSpWzqJdZZUb1XKGptcrLJsZ7uTwB9dcZiQYo9Xfc_LuMMdDYkWlC08RdyReVXusRftqdBBgKTmZl59r2OwRROmIYG3OY2UXIWqOLKP_a_iRCzcjX-UQN3jZ7sgou6J-W-T-hsr_kED4HgC4SP7MVurujEsUWszKNrzrqCB26RO7hCiee58Er8bD4AqWEH62KXeo3ekx6UJ6GfE2Stxer40zBrLnsjgbgFGn6vM"
                       />
                     </div>
@@ -923,7 +1018,7 @@ export default function App() {
                     <div className="w-10 h-10 rounded-full bg-paper-tint border border-border-hairline overflow-hidden shrink-0">
                       <img
                         className="w-full h-full object-cover"
-                        alt="Jayson Greene portrait"
+                        alt="Jayson Greene"
                         src="https://lh3.googleusercontent.com/aida-public/AB6AXuD5hv_Wib4TweOo1GNFDXPB0v4E1dqqClqg3_QHhq2FBn1lRVgId6LQvU8lbT1cZOCJ2XPFakN2CNnrJIrG42-55-K-rTu4iRoucAFJO1tYVxcb9X3Cc21l6mfjkMRNUWiVu4KTa0Yo01S8M4Dox5aWcXDk0FU5v_2JoQZJ5ciQxSGW7MiXRNhcsALjZoXzpNAzwUmCnDmc9WI5uV50wdrrwk4TQ8W43mjx5rZwypC47-D9Z4cgw_Wj"
                       />
                     </div>
@@ -985,19 +1080,32 @@ export default function App() {
                     </p>
                   </button>
 
-                  {/* Interactive Baseball Scoreboard Widget */}
+                  {/* Interactive Baseball Scoreboard Widget with Diamond graphic */}
                   <div className="mt-4 p-3 bg-paper-tint border border-border-hairline space-y-2">
-                    <div className="flex items-center justify-between text-xs font-bold font-body-standard">
-                      <span>Milwaukee Brewers</span>
-                      <span className="font-bold text-ink-black text-sm">4</span>
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 space-y-1">
+                        <div className="flex items-center justify-between text-xs font-bold font-body-standard pr-4">
+                          <span>Milwaukee Brewers</span>
+                          <span className="font-bold text-ink-black text-sm">4</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs font-body-standard text-ink-muted pr-4">
+                          <span>Los Angeles Dodgers</span>
+                          <span className="text-sm">1</span>
+                        </div>
+                      </div>
+
+                      {/* Baseball Diamond Graphic */}
+                      <div className="relative w-8 h-8 border border-slate-300 transform rotate-45 shrink-0 flex items-center justify-center bg-white">
+                        {/* 1st base runner active */}
+                        <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-live-red"></div>
+                        <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-slate-300"></div>
+                        <div className="absolute -top-1 -left-1 w-2 h-2 bg-slate-300"></div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs font-body-standard text-ink-muted">
-                      <span>Los Angeles Dodgers</span>
-                      <span className="text-sm">1</span>
-                    </div>
-                    <div className="text-[10px] font-label-meta uppercase text-live-red font-bold pt-1 border-t border-border-hairline flex items-center justify-between">
+
+                    <div className="text-[10px] font-label-meta uppercase text-live-red font-bold pt-1.5 border-t border-border-hairline flex items-center justify-between">
                       <span>Top 7th • 2 Outs • Runner on 1st</span>
-                      <span className="text-ink-subtle font-normal">Fox Sports</span>
+                      <span className="text-ink-subtle font-normal">Pitch count: 88</span>
                     </div>
                   </div>
 
@@ -1177,11 +1285,11 @@ export default function App() {
                     </button>
                   </div>
                   {wirecutterToast && (
-                    <div className="mt-2 p-2 bg-white border border-border-hairline text-[11px] text-ink-charcoal flex items-center justify-between">
+                    <div className="mt-2 p-2 bg-white border border-border-hairline text-[11px] text-ink-charcoal flex items-center justify-between animate-in fade-in duration-150">
                       <span>Wirecutter top pick: <strong>Coway Airmega AP-1512HH</strong></span>
                       <button
                         onClick={() => setWirecutterToast(false)}
-                        className="text-xs text-ink-subtle hover:text-ink-black font-bold ml-2"
+                        className="text-xs text-ink-subtle hover:text-ink-black font-bold ml-2 cursor-pointer"
                       >
                         ✕
                       </button>
@@ -1382,6 +1490,12 @@ export default function App() {
         query={searchQuery}
         setQuery={setSearchQuery}
         onSelectArticle={(art) => setSelectedArticle(art)}
+      />
+
+      <MarketsWeatherPopover
+        isOpen={isMarketsPopoverOpen}
+        onClose={() => setIsMarketsPopoverOpen(false)}
+        editionName={currentEdition.label}
       />
     </div>
   );

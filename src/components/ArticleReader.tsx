@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   ArrowLeft, 
   Bookmark, 
@@ -7,12 +7,17 @@ import {
   VolumeX, 
   Play, 
   Pause, 
+  Square, 
   MessageSquare, 
   ThumbsUp, 
   Type, 
   Check, 
   Clock, 
-  Send 
+  Send, 
+  Gift, 
+  Printer, 
+  Maximize2, 
+  ExternalLink 
 } from 'lucide-react';
 import { Article, Comment, INITIAL_COMMENTS } from '../data/newsData';
 
@@ -33,15 +38,18 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
 }) => {
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'xlarge'>('normal');
   const [isPlayingAudio, setIsPlayingAudio] = useState<boolean>(false);
-  const [audioProgress, setAudioProgress] = useState<number>(0);
+  const [speechRate, setSpeechRate] = useState<number>(1.0);
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
   const [comments, setComments] = useState<Comment[]>([]);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [userName, setUserName] = useState<string>('Reader in Brooklyn');
   const [showShareToast, setShowShareToast] = useState<boolean>(false);
-  const [showComments, setShowComments] = useState<boolean>(false);
+  const [showGiftModal, setShowGiftModal] = useState<boolean>(false);
+  const [isImageZoomed, setIsImageZoomed] = useState<boolean>(false);
+
+  const speechUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   useEffect(() => {
-    // Scroll to top upon opening article
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setComments(INITIAL_COMMENTS[article.id] || [
       {
@@ -53,24 +61,68 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         upvotes: 14
       }
     ]);
+
+    // Handle scroll depth progress
+    const handleScroll = () => {
+      const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+      if (totalHeight > 0) {
+        const currentProgress = (window.scrollY / totalHeight) * 100;
+        setScrollProgress(Math.min(100, Math.max(0, currentProgress)));
+      }
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
   }, [article.id]);
 
-  // Audio player timer
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPlayingAudio) {
-      interval = setInterval(() => {
-        setAudioProgress((prev) => {
-          if (prev >= 100) {
-            setIsPlayingAudio(false);
-            return 0;
-          }
-          return prev + 1;
-        });
-      }, 300);
+  // Audio Speech synthesis
+  const toggleSpeech = () => {
+    if (!('speechSynthesis' in window)) {
+      alert('Text-to-speech is not supported in this browser environment.');
+      return;
     }
-    return () => clearInterval(interval);
-  }, [isPlayingAudio]);
+
+    if (isPlayingAudio) {
+      window.speechSynthesis.pause();
+      setIsPlayingAudio(false);
+    } else {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+        setIsPlayingAudio(true);
+      } else {
+        window.speechSynthesis.cancel();
+        const fullText = `${article.title}. ${article.deck}. Reported ${article.byline}. ${article.content.join(' ')}`;
+        const utterance = new SpeechSynthesisUtterance(fullText);
+        utterance.rate = speechRate;
+        utterance.pitch = 1.0;
+        utterance.onend = () => setIsPlayingAudio(false);
+        utterance.onerror = () => setIsPlayingAudio(false);
+        speechUtteranceRef.current = utterance;
+        window.speechSynthesis.speak(utterance);
+        setIsPlayingAudio(true);
+      }
+    }
+  };
+
+  const stopSpeech = () => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+    }
+    setIsPlayingAudio(false);
+  };
+
+  const changeRate = (rate: number) => {
+    setSpeechRate(rate);
+    if (isPlayingAudio) {
+      stopSpeech();
+      setTimeout(toggleSpeech, 100);
+    }
+  };
 
   const handleAddComment = (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,41 +154,57 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   };
 
   const getFontSizeClass = () => {
-    if (fontSize === 'large') return 'text-[19px] leading-[31px]';
-    if (fontSize === 'xlarge') return 'text-[22px] leading-[36px]';
-    return 'text-[17px] leading-[28px]';
+    if (fontSize === 'large') return 'text-[19px] leading-[32px]';
+    if (fontSize === 'xlarge') return 'text-[22px] leading-[38px]';
+    return 'text-[17px] leading-[29px]';
   };
 
   return (
-    <article className="min-h-screen bg-paper-pure font-sans text-ink-black">
-      {/* Top Floating Utility Ribbon */}
-      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-border-hairline shadow-xs">
+    <article className="min-h-screen bg-paper-pure font-sans text-ink-black relative">
+      {/* Top Reading Progress Bar */}
+      <div
+        className="fixed top-0 left-0 h-[3px] bg-nyt-blue z-50 transition-all duration-100"
+        style={{ width: `${scrollProgress}%` }}
+      ></div>
+
+      {/* Sticky Reader Utility Header */}
+      <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-border-hairline shadow-xs">
         <div className="max-w-4xl mx-auto px-4 py-2.5 flex items-center justify-between">
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue transition-colors"
+            className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-ink-charcoal hover:text-nyt-blue transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Front Page</span>
           </button>
 
           <div className="text-center hidden sm:block">
-            <span className="font-masthead-gothic text-lg select-none">The New York Times</span>
+            <span className="font-masthead-gothic text-xl select-none">The New York Times</span>
           </div>
 
-          <div className="flex items-center gap-3 text-ink-charcoal">
+          <div className="flex items-center gap-2 sm:gap-3 text-ink-charcoal">
             {/* Audio Toggle */}
             <button
-              onClick={() => setIsPlayingAudio(!isPlayingAudio)}
-              className={`p-1.5 border transition-colors flex items-center gap-1 text-xs ${
+              onClick={toggleSpeech}
+              className={`px-2.5 py-1 border transition-colors flex items-center gap-1.5 text-xs font-semibold cursor-pointer ${
                 isPlayingAudio
-                  ? 'border-nyt-blue text-nyt-blue bg-blue-50/50'
+                  ? 'border-nyt-blue text-nyt-blue bg-blue-50/60 shadow-xs'
                   : 'border-border-hairline hover:border-ink-black'
               }`}
               title="Listen to story"
             >
               {isPlayingAudio ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-              <span className="hidden md:inline font-semibold">Listen</span>
+              <span className="hidden md:inline">Listen</span>
+            </button>
+
+            {/* Gift Article Button */}
+            <button
+              onClick={() => setShowGiftModal(true)}
+              className="px-2 py-1 border border-border-hairline hover:border-ink-black text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              title="Gift this article (10 remaining this month)"
+            >
+              <Gift className="w-3.5 h-3.5 text-opinion-crimson" />
+              <span className="hidden lg:inline">Gift</span>
             </button>
 
             {/* Font Size Changer */}
@@ -144,16 +212,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               <button
                 onClick={() => setFontSize('normal')}
                 className={`px-2 py-1 text-xs font-serif ${
-                  fontSize === 'normal' ? 'bg-ink-black text-white' : 'hover:bg-slate-100'
+                  fontSize === 'normal' ? 'bg-ink-black text-white font-bold' : 'hover:bg-slate-100'
                 }`}
-                title="Normal Text"
+                title="Standard Text"
               >
                 A
               </button>
               <button
                 onClick={() => setFontSize('large')}
                 className={`px-2 py-1 text-sm font-serif ${
-                  fontSize === 'large' ? 'bg-ink-black text-white' : 'hover:bg-slate-100'
+                  fontSize === 'large' ? 'bg-ink-black text-white font-bold' : 'hover:bg-slate-100'
                 }`}
                 title="Larger Text"
               >
@@ -161,10 +229,10 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </button>
             </div>
 
-            {/* Save Bookmark */}
+            {/* Bookmark / Reading list */}
             <button
               onClick={() => onToggleSave(article.id)}
-              className={`p-1.5 border transition-colors ${
+              className={`p-1.5 border transition-colors cursor-pointer ${
                 isSaved
                   ? 'border-nyt-blue text-nyt-blue bg-blue-50/50'
                   : 'border-border-hairline hover:border-ink-black'
@@ -177,50 +245,47 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
             {/* Share */}
             <button
               onClick={copyShareLink}
-              className="p-1.5 border border-border-hairline hover:border-ink-black transition-colors relative"
+              className="p-1.5 border border-border-hairline hover:border-ink-black transition-colors relative cursor-pointer"
               title="Share article"
             >
               <Share2 className="w-3.5 h-3.5" />
               {showShareToast && (
-                <span className="absolute -bottom-8 right-0 bg-ink-black text-white text-[10px] py-1 px-2 whitespace-nowrap shadow-md">
+                <span className="absolute -bottom-8 right-0 bg-ink-black text-white text-[10px] py-1 px-2 whitespace-nowrap shadow-md z-50">
                   Link copied
                 </span>
               )}
             </button>
-
-            {/* Comments Counter Button */}
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="p-1.5 border border-border-hairline hover:border-ink-black transition-colors flex items-center gap-1 text-xs"
-            >
-              <MessageSquare className="w-3.5 h-3.5" />
-              <span className="font-semibold">{comments.length}</span>
-            </button>
           </div>
         </div>
 
-        {/* Audio Player Bar */}
+        {/* Audio Player Scrubber Bar if Playing */}
         {isPlayingAudio && (
-          <div className="bg-paper-tint border-t border-border-hairline px-4 py-2 text-xs flex items-center gap-3">
-            <Volume2 className="w-4 h-4 text-nyt-blue animate-pulse" />
-            <div className="flex-1">
-              <div className="flex items-center justify-between text-[11px] text-ink-subtle mb-1">
-                <span>Narrated by NYT Audio Desk</span>
-                <span>{Math.floor((audioProgress / 100) * 5)}:00 / 5:00</span>
-              </div>
-              <div className="w-full bg-slate-200 h-1.5 overflow-hidden">
-                <div
-                  className="bg-nyt-blue h-full transition-all duration-300"
-                  style={{ width: `${audioProgress}%` }}
-                ></div>
-              </div>
+          <div className="bg-paper-warm border-t border-border-hairline px-4 py-2 text-xs flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Volume2 className="w-4 h-4 text-nyt-blue animate-pulse" />
+              <span className="font-semibold text-ink-black">Reading: {article.title}</span>
             </div>
-            <button
-              onClick={() => setIsPlayingAudio(false)}
-              className="text-ink-subtle hover:text-ink-black text-[11px] uppercase font-bold"
-            >
-              Stop
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 text-[11px] font-mono">
+                {[1.0, 1.25, 1.5].map((rate) => (
+                  <button
+                    key={rate}
+                    onClick={() => changeRate(rate)}
+                    className={`px-1.5 py-0.5 border ${
+                      speechRate === rate ? 'bg-ink-black text-white font-bold' : 'border-border-hairline hover:border-ink-black'
+                    }`}
+                  >
+                    {rate}x
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={stopSpeech}
+                className="flex items-center gap-1 text-[11px] uppercase font-bold text-opinion-crimson hover:underline"
+              >
+                <Square className="w-3 h-3 fill-opinion-crimson" /> Stop
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -243,7 +308,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         </div>
 
         {/* Article Headline */}
-        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-ink-black leading-[1.15] tracking-tight mb-4">
+        <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-bold text-ink-black leading-[1.12] tracking-tight mb-4">
           {article.title}
         </h1>
 
@@ -254,16 +319,16 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
 
         {/* Byline & Metadata Strip */}
         <div className="flex flex-wrap items-center justify-between border-t border-b border-border-hairline py-3 mb-6 text-xs text-ink-subtle gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             {article.authorAvatar && (
               <img
                 src={article.authorAvatar}
                 alt={article.byline}
-                className="w-9 h-9 rounded-full object-cover border border-border-hairline"
+                className="w-10 h-10 rounded-full object-cover border border-border-hairline"
               />
             )}
             <div>
-              <div className="font-bold text-ink-black font-sans uppercase tracking-wider">
+              <div className="font-bold text-ink-black font-sans uppercase tracking-wider text-xs">
                 {article.byline}
               </div>
               {article.authorRole && (
@@ -271,11 +336,11 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 font-medium">
+          <div className="flex items-center gap-3 font-medium">
             <span>{article.publishDate}</span>
             <span>•</span>
             <span className="flex items-center gap-1">
-              <Clock className="w-3 h-3" />
+              <Clock className="w-3.5 h-3.5" />
               {article.readTime}
             </span>
           </div>
@@ -284,12 +349,21 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         {/* Featured Image */}
         {article.imageUrl && (
           <figure className="mb-8">
-            <div className="overflow-hidden bg-paper-tint">
+            <div
+              className="overflow-hidden bg-paper-tint relative group cursor-pointer"
+              onClick={() => setIsImageZoomed(true)}
+            >
               <img
                 src={article.imageUrl}
                 alt={article.imageAlt || article.title}
-                className="w-full h-auto max-h-[500px] object-cover"
+                className="w-full h-auto max-h-[520px] object-cover group-hover:scale-[1.01] transition-transform duration-300"
               />
+              <button
+                className="absolute bottom-3 right-3 p-1.5 bg-black/60 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                title="Expand image"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
             </div>
             {(article.imageCaption || article.imageCredit) && (
               <figcaption className="flex flex-col sm:flex-row sm:items-baseline justify-between text-xs text-ink-muted pt-2 border-b border-border-hairline pb-2 gap-1 font-sans">
@@ -303,12 +377,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         )}
 
         {/* Article Body */}
-        <div className={`font-serif text-ink-charcoal space-y-5 ${getFontSizeClass()}`}>
+        <div className={`font-serif text-ink-charcoal space-y-6 ${getFontSizeClass()}`}>
           {article.content.map((paragraph, index) => {
             // First paragraph drop cap
             if (index === 0) {
               return (
-                <p key={index} className="first-letter:text-5xl first-letter:font-serif first-letter:font-bold first-letter:float-left first-letter:mr-3 first-letter:leading-none first-letter:text-ink-black">
+                <p key={index} className="first-letter:text-6xl first-letter:font-serif first-letter:font-bold first-letter:float-left first-letter:mr-3 first-letter:leading-none first-letter:text-ink-black">
                   {paragraph}
                 </p>
               );
@@ -319,11 +393,11 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               return (
                 <React.Fragment key={index}>
                   <p>{paragraph}</p>
-                  <blockquote className="my-8 py-5 border-y-2 border-border-strong text-center">
-                    <p className="font-serif italic text-xl sm:text-2xl text-ink-black leading-snug">
+                  <blockquote className="my-8 py-6 border-y-2 border-border-strong text-center px-4 bg-paper-tint">
+                    <p className="font-serif italic text-2xl sm:text-3xl text-ink-black leading-snug">
                       “{article.pullQuote.quote}”
                     </p>
-                    <cite className="block text-xs uppercase tracking-widest font-sans font-bold text-ink-subtle mt-2 not-italic">
+                    <cite className="block text-xs uppercase tracking-widest font-sans font-bold text-ink-subtle mt-3 not-italic">
                       — {article.pullQuote.attribution}
                     </cite>
                   </blockquote>
@@ -335,15 +409,23 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           })}
         </div>
 
-        {/* Article End Tag */}
+        {/* Article End Tag & Print */}
         <div className="my-8 pt-4 border-t border-border-hairline flex items-center justify-between text-xs text-ink-subtle">
-          <span>A version of this article appears in print on Section A, Page 1.</span>
-          <button
-            onClick={copyShareLink}
-            className="text-nyt-blue font-bold uppercase tracking-wider hover:underline"
-          >
-            Order Reprints
-          </button>
+          <span>A version of this article appears in print on Page A1 of the National Edition.</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.print()}
+              className="hover:text-ink-black flex items-center gap-1 cursor-pointer"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print
+            </button>
+            <button
+              onClick={copyShareLink}
+              className="text-nyt-blue font-bold uppercase tracking-wider hover:underline cursor-pointer"
+            >
+              Order Reprints
+            </button>
+          </div>
         </div>
 
         {/* Reader Comments Drawer / Section */}
@@ -426,13 +508,71 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         <div className="mt-12 text-center pb-8">
           <button
             onClick={onBack}
-            className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink-black bg-ink-black text-white hover:bg-slate-800 font-bold text-xs uppercase tracking-wider transition-colors"
+            className="inline-flex items-center gap-2 px-6 py-3 border-2 border-ink-black bg-ink-black text-white hover:bg-slate-800 font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Return to Front Page</span>
           </button>
         </div>
       </div>
+
+      {/* Gift Article Modal */}
+      {showGiftModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white border-2 border-ink-black max-w-md w-full p-6 shadow-2xl font-sans">
+            <div className="text-center mb-4">
+              <Gift className="w-10 h-10 text-opinion-crimson mx-auto mb-2" />
+              <h3 className="font-serif text-2xl font-bold">Gift This Article</h3>
+              <p className="text-xs text-ink-subtle mt-1">
+                As an all-access subscriber, you can gift up to 10 articles each month.
+                Anyone can read this article through your gift link without a paywall.
+              </p>
+            </div>
+
+            <div className="p-3 bg-paper-tint border border-border-hairline text-xs font-mono break-all mb-4">
+              {window.location.origin}/gift/{article.id}?code=NYT-GIFT-2026
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  navigator.clipboard?.writeText(`${window.location.origin}/gift/${article.id}?code=NYT-GIFT-2026`);
+                  setShowGiftModal(false);
+                  setShowShareToast(true);
+                  setTimeout(() => setShowShareToast(false), 2000);
+                }}
+                className="w-full py-2 bg-nyt-blue hover:bg-[#255070] text-white font-bold text-xs uppercase tracking-wider"
+              >
+                Copy Gift Link
+              </button>
+              <button
+                onClick={() => setShowGiftModal(false)}
+                className="px-4 py-2 border border-border-hairline text-xs font-bold uppercase hover:border-ink-black"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Zoom Lightbox */}
+      {isImageZoomed && article.imageUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 cursor-pointer"
+          onClick={() => setIsImageZoomed(false)}
+        >
+          <img
+            src={article.imageUrl}
+            alt={article.imageAlt || article.title}
+            className="max-w-5xl max-h-[85vh] object-contain shadow-2xl"
+          />
+          <p className="text-white text-xs mt-3 font-serif max-w-xl text-center">
+            {article.imageCaption}
+          </p>
+          <span className="text-white/60 text-[11px] mt-1 uppercase font-sans">Click anywhere to close</span>
+        </div>
+      )}
     </article>
   );
 };
