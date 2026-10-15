@@ -1,0 +1,6 @@
+{
+  "name": "The New York Times",
+  "description": "Authentic broadsheet news publication featuring front page reporting, breaking dispatches, opinion essays, interactive games, and multimedia coverage.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

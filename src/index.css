@@ -1,0 +1,136 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #fbf9f9;
+  --color-surface-dim: #dbdad9;
+  --color-surface-bright: #fbf9f9;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f5f3f3;
+  --color-surface-container: #efeded;
+  --color-surface-container-high: #e9e8e7;
+  --color-surface-container-highest: #e3e2e2;
+  --color-on-surface: #1b1c1c;
+  --color-on-surface-variant: #444748;
+  --color-outline: #747878;
+  --color-outline-variant: #c4c7c7;
+  --color-primary: #000000;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #1c1b1b;
+  --color-on-primary-container: #858383;
+  --color-secondary: #5e5e5e;
+  --color-on-secondary: #ffffff;
+  --color-ink-black: #121212;
+  --color-ink-charcoal: #333333;
+  --color-ink-muted: #5a5a5a;
+  --color-ink-subtle: #727272;
+  --color-paper-pure: #ffffff;
+  --color-paper-tint: #f8f8f8;
+  --color-paper-warm: #f7f7f5;
+  --color-border-hairline: #ebebeb;
+  --color-border-strong: #121212;
+  --color-nyt-blue: #326891;
+  --color-opinion-crimson: #a81a1a;
+  --color-live-red: #d0021b;
+  --color-tertiary-container: #001d31;
+
+  --font-serif: "Source Serif 4", Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: "Libre Franklin", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-masthead: "UnifrakturMaguntia", Georgia, serif;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-sans);
+    color: var(--color-ink-black);
+    background-color: var(--color-paper-pure);
+  }
+}
+
+.font-masthead-gothic {
+  font-family: "UnifrakturMaguntia", Georgia, serif;
+}
+
+.font-headline-xl {
+  font-family: var(--font-serif);
+  font-size: 36px;
+  line-height: 42px;
+  letter-spacing: -0.015em;
+  font-weight: 700;
+}
+
+.font-headline-lg {
+  font-family: var(--font-serif);
+  font-size: 26px;
+  line-height: 32px;
+  letter-spacing: -0.01em;
+  font-weight: 700;
+}
+
+.font-headline-md {
+  font-family: var(--font-serif);
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 700;
+}
+
+.font-headline-sm {
+  font-family: var(--font-serif);
+  font-size: 16px;
+  line-height: 21px;
+  font-weight: 700;
+}
+
+.font-body-editorial {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  line-height: 27px;
+  font-weight: 400;
+}
+
+.font-body-standard {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+.font-caption {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 400;
+}
+
+.font-label-section {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.font-label-meta {
+  font-family: var(--font-sans);
+  font-size: 10px;
+  line-height: 13px;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.font-nav-link {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+/* Custom scrollbar hiding */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
